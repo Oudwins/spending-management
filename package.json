@@ -11,7 +11,7 @@
     "web:preview": "vite preview --port 4173 --strictPort",
     "android:build": "./android/gradlew -p android :app:assembleRelease",
     "android:build:debug": "./android/gradlew -p android :app:assembleDebug",
-    "checks": "npm run check:types && npm run check:lint",
+    "checks": "npm run checks:types && npm run checks:lint",
     "checks:types": "vue-tsc --noEmit",
     "checks:lint": "eslint .",
     "tests": "npm run test:unit",
@@ -41,6 +41,8 @@
     "ionicons": "^8.0.13",
     "events": "^3.3.0",
     "pouchdb-browser": "^9.0.0",
+    "pouchdb-adapter-cordova-sqlite": "^2.0.8",
+    "cordova-sqlite-storage": "^7.0.0",
     "vue": "^3.5.28",
     "vue-router": "^4.5.0"
   },

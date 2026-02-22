@@ -13,11 +13,12 @@ describe('pouchdb-backed model', () => {
 
   it('seeds settings and categories on first init', async () => {
     const m: any = createModel(`test-seed-${Date.now()}-${Math.random()}`)
-    const first = await m.init()
+    const first = await m.init({ platform: 'web' })
 
     expect(first).toBe(false)
     expect(m.get_default_value()).toBe('€')
     expect(m.get_budget()).toEqual({ type: 0, budget: 0 })
+    expect(m.get_couchdb_url()).toBe('')
     expect(m.get_categories().length).toBeGreaterThan(0)
 
     await m.__test_destroy_db()
@@ -28,7 +29,7 @@ describe('pouchdb-backed model', () => {
     vi.spyOn(Date, 'now').mockReturnValue(now)
 
     const m: any = createModel(`test-monthly-${Date.now()}-${Math.random()}`)
-    await m.init()
+    await m.init({ platform: 'web' })
     await m.set_budget(0, 310) // monthly
 
     await m.add_expense(10, 'Grocery 🍴')
@@ -61,7 +62,7 @@ describe('pouchdb-backed model', () => {
     vi.spyOn(Date, 'now').mockReturnValue(now)
 
     const m: any = createModel(`test-past-${Date.now()}-${Math.random()}`)
-    await m.init()
+    await m.init({ platform: 'web' })
 
     const months = await m.get_past_monthly_expenses(36)
     expect(months).toHaveLength(36)
@@ -81,6 +82,25 @@ describe('pouchdb-backed model', () => {
 
     // With no expenses, totals are 0.00.
     expect(months[10].total_sum).toBe('0.00')
+
+    await m.__test_destroy_db()
+  })
+
+  it('starts and restarts sync when couchdbURL changes', async () => {
+    const m: any = createModel(`test-sync-${Date.now()}-${Math.random()}`)
+    await m.init({ platform: 'web' })
+
+    const handler: any = {
+      on: vi.fn(() => handler),
+      cancel: vi.fn(),
+    }
+    m.db.sync = vi.fn(() => handler)
+
+    await m.set_couchdb_url('https://user:pass@localhost:5984/spending')
+    expect(m.db.sync).toHaveBeenCalledTimes(1)
+
+    await m.set_couchdb_url('')
+    expect(handler.cancel).toHaveBeenCalledTimes(1)
 
     await m.__test_destroy_db()
   })

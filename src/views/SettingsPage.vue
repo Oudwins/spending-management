@@ -116,9 +116,28 @@
  <div class="middle" style = "margin-top: 24px;">
   <ion-button @click="export_data()" style="padding-left:10px; padding-right:10px">Export data</ion-button>
   <ion-button @click="import_data()" style="padding-left:10px; padding-right:10px">Import data</ion-button>
-</div>
+ </div>
 
- <div style="margin-bottom:100px"></div>
+ <div class="dividercontainer" style="margin-top: 18px;">
+       <ion-item-divider class="withtopborder">
+        <p class="weightened">
+        CouchDB sync
+        </p>
+      </ion-item-divider>
+ </div>
+
+ <div class="amountdiv" style="margin-top:14px; margin-bottom:12px">
+    <ion-item style="width:85%">
+      <ion-label position="floating">CouchDB URL:</ion-label>
+      <ion-input type="text" v-model="couchdbURL" placeholder="https://user:pass@host:5984/db"></ion-input>
+    </ion-item>
+ </div>
+
+ <div class="middle" style="height:45px">
+   <ion-button @click="saveCouchdbURL">Save sync URL</ion-button>
+ </div>
+
+  <div style="margin-bottom:100px"></div>
 
 
 <ion-popover :is-open="isAdding" :event="popoverEvent" @didDismiss="isAdding = false" style="--offset-y: -220px" >
@@ -154,6 +173,7 @@ export default defineComponent({
   data() {
     return {
       currency: "",
+      couchdbURL: "",
       isfirst: false,
       categories: [''],
       colors: ["primary", "secondary", "tertiary", "success", "warning"],
@@ -214,6 +234,15 @@ export default defineComponent({
       model.set_default_value(this.$data.currency)
       this.presentToast("Currency updated")
     },
+    async saveCouchdbURL(){
+      try{
+        await model.set_couchdb_url(this.$data.couchdbURL)
+        this.presentToast("Sync URL updated")
+      } catch {
+        // Never error the user for sync failures.
+        this.presentToast("Sync URL updated")
+      }
+    },
     onInputClick(nativeEl:any){
       nativeEl.target.autofocus=true;
       nativeEl.target.select();
@@ -221,6 +250,7 @@ export default defineComponent({
     async init(){
       await model.init()
       this.$data.currency = model.get_default_value()
+      this.$data.couchdbURL = model.get_couchdb_url ? model.get_couchdb_url() : ""
       this.$data.categories = model.get_categories()
       this.$data.budget = model.get_budget()
       if (this.$data.budget.type != 0){

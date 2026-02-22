@@ -1,4 +1,6 @@
 import PouchDB from 'pouchdb-browser'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { FilePicker } from '@capawesome/capacitor-file-picker'
@@ -7,6 +9,7 @@ import {
   BudgetType,
   DEFAULT_BUDGET,
   DEFAULT_CATEGORIES,
+  DEFAULT_COUCHDB_URL,
   DEFAULT_CURRENCY,
   DEFAULT_LANGUAGE,
   MODEL_SCHEMA_VERSION,
@@ -53,6 +56,7 @@ type SettingsDoc = {
   type: 'settings'
   currency: string
   language: string
+  couchdbURL: string
   budget: Budget
   lastUpdate: number
 }
@@ -166,21 +170,57 @@ async function putIfMissing(db: any, doc: any): Promise<boolean> {
   return true
 }
 
+let cordovaSqliteRegistered = false
+
+async function openDb(dbName: string, platform: string) {
+  if (platform === 'android') {
+    try {
+      if (!cordovaSqliteRegistered) {
+        const mod: any = await import('pouchdb-adapter-cordova-sqlite')
+        PouchDB.plugin(mod?.default ?? mod)
+        cordovaSqliteRegistered = true
+      }
+      try {
+        return new PouchDB(dbName, { adapter: 'cordova-sqlite' })
+      } catch (e) {
+        console.warn('[pouchdb] failed to open cordova-sqlite db, falling back', e)
+      }
+    } catch (e) {
+      console.warn('[pouchdb] failed to load cordova-sqlite adapter, falling back', e)
+    }
+  }
+  return new PouchDB(dbName)
+}
+
+function syncBackoff(delay: number) {
+  const base = delay === 0 ? 1000 : Math.min(delay * 2, 5 * 60 * 1000)
+  const jitter = base * 0.2 * (Math.random() * 2 - 1)
+  return Math.max(1000, Math.round(base + jitter))
+}
+
 export function createModel(defaultDbName = 'spending-management') {
   return {
     isInit: false,
     dbName: defaultDbName,
+    platform: 'web' as string,
     db: undefined as any,
     settings: undefined as SettingsDoc | undefined,
     categories: [] as string[],
     weekly_exp: undefined as Expense | undefined,
     monthly_exp: undefined as Expense | undefined,
 
-    async init(opts?: { dbName?: string }): Promise<boolean> {
+    syncHandler: undefined as any,
+    _onlineListener: undefined as any,
+    _appStateListener: undefined as any,
+    _syncWanted: false,
+    _syncUrl: '',
+
+    async init(opts?: { dbName?: string; platform?: string }): Promise<boolean> {
       if (this.isInit) return true
 
       if (opts?.dbName) this.dbName = opts.dbName
-      this.db = new PouchDB(this.dbName)
+      this.platform = opts?.platform ?? Capacitor.getPlatform()
+      this.db = await openDb(this.dbName, this.platform)
 
       const existingSettings = await safeGet<SettingsDoc>(this.db, 'settings')
       if (!existingSettings) {
@@ -189,6 +229,7 @@ export function createModel(defaultDbName = 'spending-management') {
           type: 'settings',
           currency: DEFAULT_CURRENCY,
           language: DEFAULT_LANGUAGE,
+          couchdbURL: DEFAULT_COUCHDB_URL,
           budget: { ...DEFAULT_BUDGET },
           lastUpdate: currentVersion,
         }
@@ -203,10 +244,33 @@ export function createModel(defaultDbName = 'spending-management') {
         this.categories = [...DEFAULT_CATEGORIES]
 
         this.isInit = true
+
+        this._setupSyncHooks()
+        await this._restartSync()
         return false
       }
 
-      this.settings = existingSettings
+      // Migrate missing fields in-place.
+      let needsSettingsWrite = false
+      const migrated: any = { ...existingSettings }
+      if (migrated.couchdbURL === undefined) {
+        migrated.couchdbURL = DEFAULT_COUCHDB_URL
+        needsSettingsWrite = true
+      }
+      if (needsSettingsWrite) {
+        try {
+          const current = (await this.db.get('settings')) as any
+          current.couchdbURL = migrated.couchdbURL
+          current.lastUpdate = currentVersion
+          await this.db.put(current)
+          this.settings = current
+        } catch (e) {
+          console.warn('[settings] failed to persist migration', e)
+          this.settings = migrated
+        }
+      } else {
+        this.settings = existingSettings
+      }
       // Load categories into an in-memory cache so the UI can keep sync access.
       const catsRes = await this.db.allDocs({
         include_docs: true,
@@ -218,7 +282,73 @@ export function createModel(defaultDbName = 'spending-management') {
         .filter((n: any): n is string => typeof n === 'string')
 
       this.isInit = true
+
+      this._setupSyncHooks()
+      await this._restartSync()
       return true
+    },
+
+    _setupSyncHooks() {
+      if (this._onlineListener) return
+
+      this._onlineListener = () => {
+        if (this._syncWanted) {
+          this._restartSync().catch(() => {})
+        }
+      }
+      window.addEventListener('online', this._onlineListener)
+
+      try {
+        this._appStateListener = App.addListener('appStateChange', (state) => {
+          if (!this._syncWanted) return
+          if (state.isActive) {
+            this._restartSync().catch(() => {})
+          } else {
+            this._stopSync()
+          }
+        })
+      } catch {
+        // Web: App plugin may not be available; ignore.
+      }
+    },
+
+    _stopSync() {
+      if (this.syncHandler && typeof this.syncHandler.cancel === 'function') {
+        try {
+          this.syncHandler.cancel()
+        } catch {
+          // ignore
+        }
+      }
+      this.syncHandler = undefined
+    },
+
+    async _restartSync() {
+      await this.ensureInit()
+
+      const url = String(this.settings!.couchdbURL || '').trim()
+      this._syncUrl = url
+      this._syncWanted = url.length > 0
+
+      this._stopSync()
+      if (!this._syncWanted) return
+
+      try {
+        const h = this.db!.sync(url, {
+          live: true,
+          retry: true,
+          back_off_function: syncBackoff,
+        })
+
+        h.on('denied', (err: any) => console.warn('[sync] denied', err))
+        h.on('error', (err: any) => console.warn('[sync] error', err))
+        h.on('paused', (err: any) => {
+          if (err) console.warn('[sync] paused', err)
+        })
+        this.syncHandler = h
+      } catch (e) {
+        console.warn('[sync] failed to start', e)
+      }
     },
 
     async ensureInit() {
@@ -355,6 +485,26 @@ export function createModel(defaultDbName = 'spending-management') {
 
     get_default_value(): string {
       return this.settings!.currency
+    },
+
+    get_couchdb_url(): string {
+      return this.settings!.couchdbURL
+    },
+
+    async set_couchdb_url(url: string) {
+      await this.ensureInit()
+      const v = String(url || '').trim()
+      this.settings!.couchdbURL = v
+      try {
+        const current = (await this.db!.get('settings')) as any
+        current.couchdbURL = v
+        current.lastUpdate = currentVersion
+        await this.db!.put(current)
+        this.settings = current
+      } catch (e) {
+        console.warn('[settings] failed to persist couchdbURL', e)
+      }
+      await this._restartSync()
     },
 
     set_default_value(value: string) {
@@ -632,7 +782,7 @@ export function createModel(defaultDbName = 'spending-management') {
       // Replace DB contents entirely.
       const dbName = this.dbName
       await this.db!.destroy()
-      this.db = new PouchDB(dbName)
+      this.db = await openDb(dbName, this.platform)
       this.isInit = true
 
       const cleaned = docs
@@ -655,6 +805,7 @@ export function createModel(defaultDbName = 'spending-management') {
           type: 'settings',
           currency: DEFAULT_CURRENCY,
           language: DEFAULT_LANGUAGE,
+          couchdbURL: DEFAULT_COUCHDB_URL,
           budget: { ...DEFAULT_BUDGET },
           lastUpdate: currentVersion,
         }
@@ -673,11 +824,26 @@ export function createModel(defaultDbName = 'spending-management') {
 
       this.weekly_exp = undefined
       this.monthly_exp = undefined
+
+      await this._restartSync()
       return true
     },
 
     // Test helpers
     async __test_destroy_db() {
+      this._stopSync()
+      if (this._onlineListener) {
+        window.removeEventListener('online', this._onlineListener)
+      }
+      this._onlineListener = undefined
+      try {
+        if (this._appStateListener && typeof this._appStateListener.remove === 'function') {
+          await this._appStateListener.remove()
+        }
+      } catch {
+        // ignore
+      }
+      this._appStateListener = undefined
       if (this.db) await this.db.destroy()
       this.db = undefined
       this.settings = undefined
