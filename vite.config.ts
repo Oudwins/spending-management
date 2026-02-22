@@ -9,9 +9,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  optimizeDeps: {
+    // PouchDB's browser bundle relies on the `events` package.
+    include: ['events'],
+  },
   test: {
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./tests/vitest.setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })
