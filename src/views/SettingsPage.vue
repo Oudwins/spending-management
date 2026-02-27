@@ -133,11 +133,23 @@
     </ion-item>
  </div>
 
- <div class="middle" style="height:45px">
-   <ion-button @click="saveCouchdbURL">Save sync URL</ion-button>
+  <div class="middle" style="height:45px">
+    <ion-button @click="saveCouchdbURL">Save sync URL</ion-button>
+  </div>
+
+  <div class="dividercontainer" style="margin-top: 18px;">
+       <ion-item-divider class="withtopborder">
+        <p class="weightened">
+        Logs
+        </p>
+      </ion-item-divider>
  </div>
 
-  <div style="margin-bottom:100px"></div>
+ <div class="middle" style="height:45px">
+   <ion-button @click="export_logs">Export logs</ion-button>
+ </div>
+
+   <div style="margin-bottom:100px"></div>
 
 
 <ion-popover :is-open="isAdding" :event="popoverEvent" @didDismiss="isAdding = false" style="--offset-y: -220px" >
@@ -163,6 +175,10 @@ import { alertController , IonIcon, IonChip, IonButtons, IonButton, IonPopover, 
 import { model } from '../data/model'
 import { defineComponent } from 'vue';
 import { closeCircle } from 'ionicons/icons';
+import { Capacitor } from '@capacitor/core'
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
+import { LOG_FILE_PATH } from '@/lib/logger'
 
 export default defineComponent({
   name: 'SettingsPage',
@@ -243,9 +259,51 @@ export default defineComponent({
         this.presentToast("Sync URL updated")
       }
     },
+    async export_logs(){
+      if (Capacitor.getPlatform() !== 'android'){
+        this.presentToast('Export logs is only available on Android', 2500)
+        return
+      }
+
+      try {
+        // If the file doesn't exist yet, create it.
+        try {
+          await Filesystem.stat({ directory: Directory.Data, path: LOG_FILE_PATH })
+        } catch {
+          await Filesystem.mkdir({ directory: Directory.Data, path: 'logs', recursive: true })
+          await Filesystem.writeFile({
+            directory: Directory.Data,
+            path: LOG_FILE_PATH,
+            data: `${new Date().toISOString()} INFO [log] created via export\n`,
+            encoding: Encoding.UTF8,
+          })
+        }
+
+        const uriRes: any = await Filesystem.getUri({ directory: Directory.Data, path: LOG_FILE_PATH })
+        const uri = uriRes?.uri
+        if (!uri) throw new Error('missing log uri')
+
+        await Share.share({
+          title: 'app.log',
+          url: uri,
+          dialogTitle: 'Save log file',
+        })
+        this.presentToast('Log exported', 1500)
+      } catch {
+        this.presentToast('Could not export logs', 2500)
+      }
+    },
     onInputClick(nativeEl:any){
-      nativeEl.target.autofocus=true;
-      nativeEl.target.select();
+      const t = nativeEl?.target
+      if (!t) return
+      try {
+        t.autofocus = true
+      } catch {
+        // ignore
+      }
+      if (typeof t.select === 'function') {
+        t.select()
+      }
     },
     async init(){
       await model.init()

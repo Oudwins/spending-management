@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VITE_HOST="0.0.0.0"
 VITE_PORT="5173"
 
+COUCHDB_PORT="${COUCHDB_PORT:-5984}"
+
 # Android emulator uses this address to reach the host machine.
 CAP_LR_HOST="10.0.2.2"
 
@@ -62,7 +64,7 @@ if ! adb -s "${DEVICE_ID}" shell getprop sys.boot_completed 2>/dev/null | tr -d 
 fi
 
 echo "Starting Vite dev server on ${VITE_HOST}:${VITE_PORT}..." >&2
-(cd "${ROOT_DIR}" && npm run web:dev -- --host "${VITE_HOST}" --port "${VITE_PORT}" --strictPort) &
+(cd "${ROOT_DIR}" && VITE_DEFAULT_COUCHDB_URL="http://${CAP_LR_HOST}:${COUCHDB_PORT}/spending" npm run web:dev -- --host "${VITE_HOST}" --port "${VITE_PORT}" --strictPort) &
 VITE_PID=$!
 
 echo "Launching Capacitor run with live reload..." >&2

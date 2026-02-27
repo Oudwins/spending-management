@@ -14,9 +14,12 @@
     "checks": "npm run checks:types && npm run checks:lint",
     "checks:types": "vue-tsc --noEmit",
     "checks:lint": "eslint .",
-    "tests": "npm run test:unit",
+    "tests": "npm run tests:unit",
     "tests:unit": "vitest run",
     "cap:sync": "cap sync",
+
+    "db:dev": "scripts/db-dev",
+
     "emulator:start": "scripts/emulator-start",
     "emulator:nuke": "scripts/emulator-nuke",
     "emulator:dev": "scripts/emulator-dev",

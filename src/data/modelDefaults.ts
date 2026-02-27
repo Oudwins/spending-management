@@ -10,7 +10,9 @@ export const DEFAULT_LANGUAGE = "en";
 
 // Full CouchDB database URL, including credentials if needed.
 // Example: https://user:pass@example.com:5984/spending
-export const DEFAULT_COUCHDB_URL = "";
+const envDefaultCouchdbUrl = (import.meta as any)?.env?.VITE_DEFAULT_COUCHDB_URL;
+export const DEFAULT_COUCHDB_URL =
+  typeof envDefaultCouchdbUrl === "string" ? envDefaultCouchdbUrl : "";
 
 // Budget type matches existing UI/model semantics.
 export const DEFAULT_BUDGET = {
