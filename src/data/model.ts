@@ -11,7 +11,6 @@ import {
   BudgetType,
   DEFAULT_BUDGET,
   DEFAULT_CATEGORIES,
-  DEFAULT_COUCHDB_URL,
   DEFAULT_CURRENCY,
   DEFAULT_LANGUAGE,
   MODEL_SCHEMA_VERSION,
@@ -250,15 +249,15 @@ export function createModel(defaultDbName = "spending-management") {
           "settings",
         );
         if (!existingSettings) {
-          const settings: SettingsDoc = {
-            _id: "settings",
-            type: "settings",
-            currency: DEFAULT_CURRENCY,
-            language: DEFAULT_LANGUAGE,
-            couchdbURL: DEFAULT_COUCHDB_URL,
-            budget: { ...DEFAULT_BUDGET },
-            lastUpdate: currentVersion,
-          };
+           const settings: SettingsDoc = {
+             _id: "settings",
+             type: "settings",
+             currency: DEFAULT_CURRENCY,
+             language: DEFAULT_LANGUAGE,
+            couchdbURL: "",
+             budget: { ...DEFAULT_BUDGET },
+             lastUpdate: currentVersion,
+           };
           await this.db.put(settings);
           this.settings = settings;
 
@@ -284,7 +283,7 @@ export function createModel(defaultDbName = "spending-management") {
         let needsSettingsWrite = false;
         const migrated: any = { ...existingSettings };
         if (migrated.couchdbURL === undefined) {
-          migrated.couchdbURL = DEFAULT_COUCHDB_URL;
+          migrated.couchdbURL = "";
           needsSettingsWrite = true;
         }
         if (needsSettingsWrite) {
@@ -905,7 +904,7 @@ export function createModel(defaultDbName = "spending-management") {
           type: "settings",
           currency: DEFAULT_CURRENCY,
           language: DEFAULT_LANGUAGE,
-          couchdbURL: DEFAULT_COUCHDB_URL,
+          couchdbURL: "",
           budget: { ...DEFAULT_BUDGET },
           lastUpdate: currentVersion,
         };

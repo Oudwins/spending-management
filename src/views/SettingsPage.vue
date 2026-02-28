@@ -129,9 +129,13 @@
  <div class="amountdiv" style="margin-top:14px; margin-bottom:12px">
     <ion-item style="width:85%">
       <ion-label position="floating">CouchDB URL:</ion-label>
-      <ion-input type="text" v-model="couchdbURL" placeholder="https://user:pass@host:5984/db"></ion-input>
+      <ion-input
+        type="text"
+        v-model="couchdbURL"
+        :placeholder="defaultCouchdbUrl || 'https://user:pass@host:5984/db'"
+      ></ion-input>
     </ion-item>
- </div>
+  </div>
 
   <div class="middle" style="height:45px">
     <ion-button @click="saveCouchdbURL">Save sync URL</ion-button>
@@ -179,6 +183,7 @@ import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { LOG_FILE_PATH } from '@/lib/logger'
+import { DEFAULT_COUCHDB_URL } from '@/data/modelDefaults'
 
 export default defineComponent({
   name: 'SettingsPage',
@@ -190,6 +195,7 @@ export default defineComponent({
     return {
       currency: "",
       couchdbURL: "",
+      defaultCouchdbUrl: DEFAULT_COUCHDB_URL,
       isfirst: false,
       categories: [''],
       colors: ["primary", "secondary", "tertiary", "success", "warning"],
@@ -308,7 +314,8 @@ export default defineComponent({
     async init(){
       await model.init()
       this.$data.currency = model.get_default_value()
-      this.$data.couchdbURL = model.get_couchdb_url ? model.get_couchdb_url() : ""
+      const savedUrl = model.get_couchdb_url ? model.get_couchdb_url() : ""
+      this.$data.couchdbURL = savedUrl || this.$data.defaultCouchdbUrl || ""
       this.$data.categories = model.get_categories()
       this.$data.budget = model.get_budget()
       if (this.$data.budget.type != 0){

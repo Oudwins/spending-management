@@ -77,11 +77,26 @@ COUCHDB_PID=$!
 
 export COUCHDB_CONNECT_HOST COUCHDB_PORT COUCHDB_DB COUCHDB_ADMIN_USER COUCHDB_ADMIN_PASSWORD
 node <<'NODE'
-const bind = process.env.COUCHDB_CONNECT_HOST || '127.0.0.1';
-const port = process.env.COUCHDB_PORT || '5984';
-const db = process.env.COUCHDB_DB || 'spending';
-const adminUser = process.env.COUCHDB_ADMIN_USER || 'admin';
-const adminPassword = process.env.COUCHDB_ADMIN_PASSWORD || 'admin';
+import { createEnv } from "@t3-oss/env-core";
+import { z } from "zod";
+
+const env = createEnv({
+  server: {
+    COUCHDB_CONNECT_HOST: z.string().default("127.0.0.1"),
+    COUCHDB_PORT: z.string().default("5984"),
+    COUCHDB_DB: z.string().default("spending"),
+    COUCHDB_ADMIN_USER: z.string().default("admin"),
+    COUCHDB_ADMIN_PASSWORD: z.string().default("admin"),
+  },
+  runtimeEnv: process.env,
+  emptyStringAsUndefined: true,
+});
+
+const bind = env.COUCHDB_CONNECT_HOST;
+const port = env.COUCHDB_PORT;
+const db = env.COUCHDB_DB;
+const adminUser = env.COUCHDB_ADMIN_USER;
+const adminPassword = env.COUCHDB_ADMIN_PASSWORD;
 
 const base = `http://${bind}:${port}`;
 

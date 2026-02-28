@@ -1,3 +1,5 @@
+import { env } from "@/env";
+
 export const MODEL_SCHEMA_VERSION = 1;
 
 export enum BudgetType {
@@ -8,11 +10,10 @@ export enum BudgetType {
 export const DEFAULT_CURRENCY = "€";
 export const DEFAULT_LANGUAGE = "en";
 
-// Full CouchDB database URL, including credentials if needed.
-// Example: https://user:pass@example.com:5984/spending
-const envDefaultCouchdbUrl = (import.meta as any)?.env?.VITE_DEFAULT_COUCHDB_URL;
 export const DEFAULT_COUCHDB_URL =
-  typeof envDefaultCouchdbUrl === "string" ? envDefaultCouchdbUrl : "";
+  typeof env.VITE_DEFAULT_COUCHDB_URL === "string"
+    ? env.VITE_DEFAULT_COUCHDB_URL
+    : "";
 
 // Budget type matches existing UI/model semantics.
 export const DEFAULT_BUDGET = {
