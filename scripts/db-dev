@@ -9,6 +9,10 @@ COUCHDB_DB="${COUCHDB_DB:-spending}"
 COUCHDB_ADMIN_USER="${COUCHDB_ADMIN_USER:-admin}"
 COUCHDB_ADMIN_PASSWORD="${COUCHDB_ADMIN_PASSWORD:-admin}"
 
+# CORS: for browser dev, CouchDB must echo a specific Origin when credentials are included.
+# Comma-separated list of allowed origins.
+COUCHDB_CORS_ORIGINS="${COUCHDB_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+
 # 0.0.0.0 is valid to bind, but not to connect to.
 COUCHDB_CONNECT_HOST="${COUCHDB_BIND}"
 if [[ "${COUCHDB_CONNECT_HOST}" == "0.0.0.0" ]]; then
@@ -51,11 +55,12 @@ port = ${COUCHDB_PORT}
 enable_cors = true
 
 [cors]
-origins = *
-credentials = false
-headers = accept, authorization, content-type, origin, referer
-methods = GET, POST, PUT, DELETE, OPTIONS
-max_age = 3600
+# Must not be '*' when credentials are used.
+origins = ${COUCHDB_CORS_ORIGINS}
+credentials = true
+methods = GET, PUT, POST, HEAD, DELETE, OPTIONS
+headers = accept, authorization, content-type, origin, referer, x-requested-with, if-match, if-none-match
+exposed_headers = location, etag
 
 [log]
 file = ${LOG_DIR}/couchdb.log
