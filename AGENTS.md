@@ -2,6 +2,9 @@
 
 This is an ionic + vue app for spending management for android.
 
+## IMPORTANT NOTES
+- This app is completely new. There are no users for the app. We can and should always approach problems without considering backwards compatibility. We will not break any existing user's flow by doing so.
+
 ## Standard Operating Procedures
 - When making code changes
   - Always run `npm run checks` and `npm run build`.  Fix any issues before returning control over to the user
