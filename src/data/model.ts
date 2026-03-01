@@ -11,6 +11,7 @@ import {
   BudgetType,
   DEFAULT_BUDGET,
   DEFAULT_CATEGORIES,
+  DEFAULT_COUCHDB_URL,
   DEFAULT_CURRENCY,
   DEFAULT_LANGUAGE,
   MODEL_SCHEMA_VERSION,
@@ -58,6 +59,9 @@ type SettingsDoc = {
   currency: string;
   language: string;
   couchdbURL: string;
+  // True once the user explicitly saved the CouchDB URL (including clearing it).
+  // When false, the runtime may fall back to DEFAULT_COUCHDB_URL.
+  couchdbURLSet?: boolean;
   budget: Budget;
   lastUpdate: number;
 };
@@ -249,15 +253,16 @@ export function createModel(defaultDbName = "spending-management") {
           "settings",
         );
         if (!existingSettings) {
-           const settings: SettingsDoc = {
-             _id: "settings",
-             type: "settings",
-             currency: DEFAULT_CURRENCY,
-             language: DEFAULT_LANGUAGE,
+          const settings: SettingsDoc = {
+            _id: "settings",
+            type: "settings",
+            currency: DEFAULT_CURRENCY,
+            language: DEFAULT_LANGUAGE,
             couchdbURL: "",
-             budget: { ...DEFAULT_BUDGET },
-             lastUpdate: currentVersion,
-           };
+            couchdbURLSet: false,
+            budget: { ...DEFAULT_BUDGET },
+            lastUpdate: currentVersion,
+          };
           await this.db.put(settings);
           this.settings = settings;
 
@@ -286,10 +291,16 @@ export function createModel(defaultDbName = "spending-management") {
           migrated.couchdbURL = "";
           needsSettingsWrite = true;
         }
+        if (migrated.couchdbURLSet === undefined) {
+          migrated.couchdbURLSet =
+            String(migrated.couchdbURL || "").trim().length > 0;
+          needsSettingsWrite = true;
+        }
         if (needsSettingsWrite) {
           try {
             const current = (await this.db.get("settings")) as any;
             current.couchdbURL = migrated.couchdbURL;
+            current.couchdbURLSet = migrated.couchdbURLSet;
             current.lastUpdate = currentVersion;
             await this.db.put(current);
             this.settings = current;
@@ -365,7 +376,12 @@ export function createModel(defaultDbName = "spending-management") {
     async _restartSync() {
       await this.ensureInit();
 
-      const url = String(this.settings!.couchdbURL || "").trim();
+      let url = String(this.settings!.couchdbURL || "").trim();
+      const mode = (import.meta as any)?.env?.MODE;
+      const isTestMode = mode === "test" || Boolean((import.meta as any)?.env?.VITEST);
+      if (!isTestMode && !url && !this.settings!.couchdbURLSet) {
+        url = String(DEFAULT_COUCHDB_URL || "").trim();
+      }
       const prevWanted = this._syncWanted;
       const prevUrl = this._syncUrl;
       this._syncUrl = url;
@@ -390,11 +406,20 @@ export function createModel(defaultDbName = "spending-management") {
           back_off_function: syncBackoff,
         });
 
+        const authHint = (err: any) => {
+          const st = err?.status;
+          if (st === 401 || st === 403) {
+            return "CouchDB requires auth; try https://user:pass@host:5984/db or adjust CouchDB security.";
+          }
+          return undefined;
+        };
+
         h.on("denied", (err: any) =>
           logger.warn("[sync] denied", {
             status: err?.status,
             name: err?.name,
             message: err?.message,
+            hint: authHint(err),
           }),
         );
         h.on("error", (err: any) =>
@@ -402,6 +427,7 @@ export function createModel(defaultDbName = "spending-management") {
             status: err?.status,
             name: err?.name,
             message: err?.message,
+            hint: authHint(err),
           }),
         );
         h.on("paused", (err: any) => {
@@ -410,6 +436,7 @@ export function createModel(defaultDbName = "spending-management") {
               status: err?.status,
               name: err?.name,
               message: err?.message,
+              hint: authHint(err),
             });
         });
         this.syncHandler = h;
@@ -565,9 +592,11 @@ export function createModel(defaultDbName = "spending-management") {
       await this.ensureInit();
       const v = String(url || "").trim();
       this.settings!.couchdbURL = v;
+      this.settings!.couchdbURLSet = true;
       try {
         const current = (await this.db!.get("settings")) as any;
         current.couchdbURL = v;
+        current.couchdbURLSet = true;
         current.lastUpdate = currentVersion;
         await this.db!.put(current);
         this.settings = current;
