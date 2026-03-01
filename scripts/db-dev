@@ -9,9 +9,13 @@ COUCHDB_DB="${COUCHDB_DB:-spending}"
 COUCHDB_ADMIN_USER="${COUCHDB_ADMIN_USER:-admin}"
 COUCHDB_ADMIN_PASSWORD="${COUCHDB_ADMIN_PASSWORD:-admin}"
 
-# CORS: for browser dev, CouchDB must echo a specific Origin when credentials are included.
+# CORS: when credentials are included, CouchDB must echo a specific Origin (not '*').
 # Comma-separated list of allowed origins.
-COUCHDB_CORS_ORIGINS="${COUCHDB_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+# Defaults cover:
+# - Web dev server: http://localhost:5173
+# - Android emulator live reload (typical): http://10.0.2.2:5173
+# - Capacitor/Cordova webview origins: http(s)://localhost, capacitor://localhost, ionic://localhost
+COUCHDB_CORS_ORIGINS="${COUCHDB_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://10.0.2.2:5173,http://localhost,https://localhost,capacitor://localhost,ionic://localhost}"
 
 # 0.0.0.0 is valid to bind, but not to connect to.
 COUCHDB_CONNECT_HOST="${COUCHDB_BIND}"

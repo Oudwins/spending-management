@@ -94,8 +94,8 @@ adb -s "${DEVICE_ID}" uninstall io.ionic.starter >/dev/null 2>&1 || true
 cd "${ROOT_DIR}"
 
 cap_run() {
-  local target_id="$1"
-  ANDROID_SERIAL="${target_id}" npx cap run android -l --host "${CAP_LR_HOST}" --port "${VITE_PORT}" --forwardPorts "${VITE_PORT}:${VITE_PORT}" --target "${target_id}"
+  local device_serial="$1"
+  ANDROID_SERIAL="${device_serial}" npx cap run android -l --host "${CAP_LR_HOST}" --port "${VITE_PORT}" --forwardPorts "${VITE_PORT}:${VITE_PORT}" --target "${AVD_NAME}"
 }
 
 is_retryable_cap_failure() {
