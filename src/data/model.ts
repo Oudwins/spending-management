@@ -59,9 +59,6 @@ type SettingsDoc = {
   currency: string;
   language: string;
   couchdbURL: string;
-  // True once the user explicitly saved the CouchDB URL (including clearing it).
-  // When false, the runtime may fall back to DEFAULT_COUCHDB_URL.
-  couchdbURLSet?: boolean;
   budget: Budget;
   lastUpdate: number;
 };
@@ -90,6 +87,12 @@ type ExpenseDoc = {
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+function normalizeCouchdbUrl(input: unknown): string {
+  const trimmed = String(input ?? "").trim();
+  if (trimmed) return trimmed;
+  return String(DEFAULT_COUCHDB_URL ?? "").trim();
 }
 
 function getDaysInMonth(month: number, year: number) {
@@ -258,8 +261,7 @@ export function createModel(defaultDbName = "spending-management") {
             type: "settings",
             currency: DEFAULT_CURRENCY,
             language: DEFAULT_LANGUAGE,
-            couchdbURL: "",
-            couchdbURLSet: false,
+            couchdbURL: normalizeCouchdbUrl(""),
             budget: { ...DEFAULT_BUDGET },
             lastUpdate: currentVersion,
           };
@@ -284,29 +286,22 @@ export function createModel(defaultDbName = "spending-management") {
           return false;
         }
 
-        // Migrate missing fields in-place.
-        let needsSettingsWrite = false;
-        const migrated: any = { ...existingSettings };
-        if (migrated.couchdbURL === undefined) {
-          migrated.couchdbURL = "";
-          needsSettingsWrite = true;
-        }
-        if (migrated.couchdbURLSet === undefined) {
-          migrated.couchdbURLSet =
-            String(migrated.couchdbURL || "").trim().length > 0;
-          needsSettingsWrite = true;
-        }
+        // Normalize CouchDB URL: empty => DEFAULT_COUCHDB_URL.
+        // Note: this intentionally removes the ability to disable sync by clearing the URL.
+        const normalizedSettings: any = { ...existingSettings };
+        const normalizedUrl = normalizeCouchdbUrl(normalizedSettings.couchdbURL);
+        const needsSettingsWrite = normalizedSettings.couchdbURL !== normalizedUrl;
         if (needsSettingsWrite) {
+          normalizedSettings.couchdbURL = normalizedUrl;
           try {
             const current = (await this.db.get("settings")) as any;
-            current.couchdbURL = migrated.couchdbURL;
-            current.couchdbURLSet = migrated.couchdbURLSet;
+            current.couchdbURL = normalizedUrl;
             current.lastUpdate = currentVersion;
             await this.db.put(current);
             this.settings = current;
           } catch (e) {
-            logger.warn("[settings] failed to persist migration", e);
-            this.settings = migrated;
+            logger.warn("[settings] failed to persist couchdbURL normalization", e);
+            this.settings = normalizedSettings;
           }
         } else {
           this.settings = existingSettings;
@@ -376,12 +371,7 @@ export function createModel(defaultDbName = "spending-management") {
     async _restartSync() {
       await this.ensureInit();
 
-      let url = String(this.settings!.couchdbURL || "").trim();
-      const mode = (import.meta as any)?.env?.MODE;
-      const isTestMode = mode === "test" || Boolean((import.meta as any)?.env?.VITEST);
-      if (!isTestMode && !url && !this.settings!.couchdbURLSet) {
-        url = String(DEFAULT_COUCHDB_URL || "").trim();
-      }
+      const url = normalizeCouchdbUrl(this.settings!.couchdbURL);
       const prevWanted = this._syncWanted;
       const prevUrl = this._syncUrl;
       this._syncUrl = url;
@@ -585,18 +575,16 @@ export function createModel(defaultDbName = "spending-management") {
     },
 
     get_couchdb_url(): string {
-      return this.settings!.couchdbURL;
+      return normalizeCouchdbUrl(this.settings!.couchdbURL);
     },
 
     async set_couchdb_url(url: string) {
       await this.ensureInit();
-      const v = String(url || "").trim();
+      const v = normalizeCouchdbUrl(url);
       this.settings!.couchdbURL = v;
-      this.settings!.couchdbURLSet = true;
       try {
         const current = (await this.db!.get("settings")) as any;
         current.couchdbURL = v;
-        current.couchdbURLSet = true;
         current.lastUpdate = currentVersion;
         await this.db!.put(current);
         this.settings = current;
@@ -933,7 +921,7 @@ export function createModel(defaultDbName = "spending-management") {
           type: "settings",
           currency: DEFAULT_CURRENCY,
           language: DEFAULT_LANGUAGE,
-          couchdbURL: "",
+          couchdbURL: normalizeCouchdbUrl(""),
           budget: { ...DEFAULT_BUDGET },
           lastUpdate: currentVersion,
         };
