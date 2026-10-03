@@ -43,6 +43,25 @@ The app relies on CouchDB/PouchDB replication semantics.
 
 If you use the web app against a CouchDB server on another origin, enable CORS on CouchDB for your web app origin.
 
+The app expects CouchDB to allow the local app origins used by the web build and Capacitor shells. A configuration equivalent to this is required:
+
+```ini
+[chttpd]
+enable_cors = true
+
+[cors]
+origins = http://localhost,https://localhost,capacitor://localhost,ionic://localhost
+credentials = true
+methods = GET, PUT, POST, HEAD, DELETE, OPTIONS
+headers = accept, authorization, content-type, origin, referer, x-requested-with, if-match, if-none-match
+exposed_headers = location, etag
+
+[log]
+level = info
+```
+
+Without this, browser and mobile-webview requests to CouchDB will be blocked by CORS and sync will not work.
+
 ## Minimal checklist
 
 1. Run CouchDB.

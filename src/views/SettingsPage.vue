@@ -243,10 +243,9 @@ import { model, type AddRecurringExpenseInput, type RecurringExpense, type SyncS
 import { defineComponent } from 'vue';
 import { alertCircle, checkmarkCircle, closeCircle, cloudOfflineOutline, syncOutline } from 'ionicons/icons';
 import { Capacitor } from '@capacitor/core'
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
-import { Share } from '@capacitor/share'
-import { LOG_FILE_PATH } from '@/lib/logger'
-import { logger } from '@/lib/logger'
+import { Filesystem } from '@capacitor/filesystem'
+import { ensureLogFileExists, flushLogger, LOG_FILE_DIRECTORY, LOG_FILE_PATH, logger } from '@/lib/logger'
+import { shareLocalFile } from '@/lib/shareLocalFile'
 import { DEFAULT_COUCHDB_URL } from '@/data/modelDefaults'
 import RecurringExpenseForm from '@/components/settings/RecurringExpenseForm.vue'
 import RecurringExpenseList from '@/components/settings/RecurringExpenseList.vue'
@@ -559,30 +558,22 @@ export default defineComponent({
       }
 
       try {
-        // If the file doesn't exist yet, create it.
-        try {
-          await Filesystem.stat({ directory: Directory.Data, path: LOG_FILE_PATH })
-        } catch {
-          await Filesystem.mkdir({ directory: Directory.Data, path: 'logs', recursive: true })
-          await Filesystem.writeFile({
-            directory: Directory.Data,
-            path: LOG_FILE_PATH,
-            data: `${new Date().toISOString()} INFO [log] created via export\n`,
-            encoding: Encoding.UTF8,
-          })
-        }
+        logger.info('[settings] export logs requested')
+        await ensureLogFileExists()
+        await flushLogger()
 
-        const uriRes: any = await Filesystem.getUri({ directory: Directory.Data, path: LOG_FILE_PATH })
+        const uriRes: any = await Filesystem.getUri({ directory: LOG_FILE_DIRECTORY, path: LOG_FILE_PATH })
         const uri = uriRes?.uri
         if (!uri) throw new Error('missing log uri')
 
-        await Share.share({
+        await shareLocalFile({
           title: 'app.log',
-          url: uri,
+          uri,
           dialogTitle: 'Save log file',
         })
         this.presentToast('Log exported', 1500)
-      } catch {
+      } catch (error) {
+        logger.error('[settings] export logs failed', error)
         this.presentToast('Could not export logs', 2500)
       }
     },

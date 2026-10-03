@@ -2,10 +2,10 @@ import PouchDB from "pouchdb-browser";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
-import { Share } from "@capacitor/share";
 import { FilePicker } from "@capawesome/capacitor-file-picker";
 
 import { logger } from "@/lib/logger";
+import { shareLocalFile } from "@/lib/shareLocalFile";
 
 import {
   BudgetType,
@@ -1737,9 +1737,9 @@ export function createModel(defaultDbName = "spending-management") {
         encoding: Encoding.UTF8,
       });
       if (!uri || !(uri as any).uri) return false;
-      await Share.share({
+      await shareLocalFile({
         title: "spending_manager_export.json",
-        url: (uri as any).uri,
+        uri: (uri as any).uri,
         dialogTitle: "Save exported file",
       });
       return true;

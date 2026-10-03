@@ -185,6 +185,10 @@ async function flush() {
   }
 }
 
+export async function flushLogger() {
+  await flush()
+}
+
 function logToConsole(level: Level, message: string, meta?: unknown) {
   try {
     const msg = redactSecrets(String(message ?? ''))

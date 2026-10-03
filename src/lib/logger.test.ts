@@ -18,7 +18,7 @@ vi.mock('@capacitor/filesystem', () => {
   }
 })
 
-import { initLogger, logger, redactSecrets, shutdownLogger } from '@/lib/logger'
+import { flushLogger, initLogger, logger, redactSecrets, shutdownLogger } from '@/lib/logger'
 import { Filesystem } from '@capacitor/filesystem'
 
 describe('logger', () => {
@@ -74,5 +74,17 @@ describe('logger', () => {
     // Flush is async; let microtasks run.
     for (let i = 0; i < 10; i++) await Promise.resolve()
     expect((Filesystem.appendFile as any).mock.calls.length).toBeGreaterThan(0)
+  })
+
+  it('flushes queued logs immediately on demand', async () => {
+    ;(Filesystem.appendFile as any).mockClear()
+    await initLogger({ platform: 'android' })
+
+    logger.info('[t] export pending')
+    await flushLogger()
+
+    expect(Filesystem.appendFile).toHaveBeenCalledTimes(1)
+    const call = (Filesystem.appendFile as any).mock.calls[0][0]
+    expect(String(call.data)).toContain('[t] export pending')
   })
 })
