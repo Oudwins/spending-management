@@ -123,7 +123,7 @@
 
 
       <ion-fab vertical="bottom" horizontal="end" slot="fixed" v-if="!isPast">
-      <div style = "display:flex;">
+      <div class="expense-actions">
             <ion-fab-button href="/past" style="margin-right:8px">
               <ion-icon :icon="calendarClearOutline"></ion-icon>
             </ion-fab-button>
@@ -227,3 +227,12 @@ export default defineComponent({
   }
 });
 </script>
+
+<style scoped>
+.expense-actions {
+  display: flex;
+  padding: 16px;
+  margin: -16px;
+  pointer-events: auto;
+}
+</style>
