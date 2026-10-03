@@ -67,6 +67,7 @@
         devShells.default = pkgs.mkShell {
           packages = [
             pkgs.nodejs_22
+            pkgs.actionlint
             pkgs.android-tools
             pkgs.couchdb3
             jdk

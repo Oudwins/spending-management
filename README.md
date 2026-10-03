@@ -4,6 +4,46 @@ Simple app to keep track of your spendings. Developed with Ionic and Vue.
 
 Available on Play Store too: https://play.google.com/store/apps/details?id=mmasera.spendingmanager.com
 
+## Install and update with Obtainium
+
+Download `spending-management.apk` from the [latest GitHub release](https://github.com/Oudwins/spending-management/releases/latest), or install [Obtainium](https://github.com/ImranR98/Obtainium/releases/latest) and add this app using the source URL:
+
+```text
+https://github.com/Oudwins/spending-management
+```
+
+Obtainium's default GitHub settings detect releases and their APK automatically. Allow Obtainium to install unknown apps when Android prompts you. It can then check for updates and manage installation; silent updates depend on your Android version and Obtainium settings.
+
+## Automated Android releases
+
+Every push to `master` (including a merged pull request) runs type and lint checks, builds a signed APK using the Nix development environment, verifies its signature, and publishes it in a GitHub release with generated release notes. You can also run **Android release** manually from the Actions tab on `master`.
+
+The Android `versionCode` is the workflow run number plus one, and both `versionName` and the release version are `1.0.<versionCode>` (tags have a `v` prefix). This increases on each new run so Android and Obtainium recognize updates. Re-running a failed run keeps its version. Keep this workflow's filename to preserve its run-number sequence.
+
+### One-time signing setup
+
+Generate a release key outside the repository (the command prompts for passwords and certificate details):
+
+```bash
+nix develop -c keytool -genkeypair -v \
+  -keystore "$HOME/spending-management-release.keystore" \
+  -storetype JKS -alias spending-management \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+In **Settings → Secrets and variables → Actions → New repository secret**, add:
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Output of `base64 -w 0 "$HOME/spending-management-release.keystore"` (Linux). |
+| `ANDROID_KEYSTORE_PASSWORD` | The keystore password. |
+| `ANDROID_KEY_ALIAS` | `spending-management` (or your chosen alias). |
+| `ANDROID_KEY_PASSWORD` | The key password (may be the same as the keystore password). |
+
+Back up the keystore and passwords and reuse them for every release. Android requires the same application ID and signing key for updates. The workflow uses its automatic `GITHUB_TOKEN` with `contents: write` to create tags and releases; no personal access token is needed.
+
+Local builds use the debug key unless `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` are provided. To replace a locally debug-signed installation with a GitHub release, first export any data you need and uninstall the local build, then install through Obtainium. The Play Store app linked above has a different application ID and is separate from these builds.
+
 ## Development
 
 This repo uses a Nix flake for consistent tool versions.
